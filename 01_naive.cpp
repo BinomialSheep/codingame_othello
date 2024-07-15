@@ -13,11 +13,12 @@ int main() {
   cin >> board_size;
   cin.ignore();
 
+  vector<string> board(board_size);
+
   // game loop
   while (1) {
     for (int i = 0; i < board_size; i++) {
-      string line;  // rows from top to bottom (viewer perspective).
-      cin >> line;
+      cin >> board[i];
       cin.ignore();
     }
     int action_count;  // number of legal actions for this turn.
@@ -29,8 +30,10 @@ int main() {
       cin >> action;
       cin.ignore();
       actions.push_back(action);
-      cerr << actions.back() << endl;
     }
-    if (actions.size()) cout << actions[0] << endl;  // a-h1-8
+
+    if (actions.size() == 0) continue;
+
+    cout << actions[0] << endl;  // a-h1-8
   }
 }
