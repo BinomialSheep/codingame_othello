@@ -1,0 +1,36 @@
+{
+  "C_Cpp.errorSquiggles": "Disabled",
+  "files.associations": {
+    "*.tcc": "cpp",
+    "deque": "cpp",
+    "list": "cpp",
+    "string": "cpp",
+    "unordered_map": "cpp",
+    "unordered_set": "cpp",
+    "vector": "cpp",
+    "ostream": "cpp",
+    "iostream": "cpp",
+    "cmath": "cpp",
+    "chrono": "cpp",
+    "random": "cpp",
+    "limits": "cpp",
+    "valarray": "cpp",
+    "complex": "cpp",
+    "array": "cpp",
+    "bitset": "cpp",
+    "string_view": "cpp",
+    "initializer_list": "cpp",
+    "regex": "cpp",
+    "utility": "cpp",
+    "map": "cpp",
+    "forward_list": "cpp",
+    "tuple": "cpp",
+    "set": "cpp"
+  },
+  "C_Cpp.clang_format_style": "Google",
+  "editor.formatOnSave": true,
+  "[plaintext]": {
+    "editor.formatOnSave": false
+  },
+  "cmake.configureOnOpen": true,
+}
