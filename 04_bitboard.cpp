@@ -12,10 +12,12 @@ inline bool chmin(T& a, T b) {
 
 /*
 ビッドボード実装
+120/374位
 
-
- ビットボード解説
- https://speakerdeck.com/antenna_three/bitutobodojie-shuo
+ビットボード解説
+https://speakerdeck.com/antenna_three/bitutobodojie-shuo
+オセロをビットボードで実装する
+https://qiita.com/sensuikan1973/items/459b3e11d91f3cb37e43
 */
 
 const vector<vector<int>> CELL_EVALATIONS = {
