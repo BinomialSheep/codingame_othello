@@ -368,6 +368,8 @@ vector<map<uint64_t, map<uint64_t, vector<pair<int, int>>>>> provisionalScores(
     2);
 // 必勝フラグ
 bool isVictory = false;
+// 訪問ノード（性能評価用（
+int visited_node = 0;
 
 // 指し手を有望度降順でソートする
 vector<int> moveOrdering(vector<int>& legal_actions) {
@@ -391,6 +393,7 @@ vector<int> moveOrdering(vector<int>& legal_actions) {
 // alphabetaのためのスコア計算
 ScoreType alphaBetaScore(State& state, ScoreType alpha, const ScoreType beta,
                          const int depth, const TimeKeeper& time_keeper) {
+  visited_node++;
   WinningStatus winningStatus = state.getWinningStatus();
   if (winningStatus == WinningStatus::WIN) return INF;
   if (winningStatus == WinningStatus::LOSE) return -INF;
@@ -468,8 +471,10 @@ int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
   int best_action = -1;
   int depth = 5;
   for (; depth < 61; depth++) {
+    visited_node = 0;
     int action = alphaBetaActionWithTimeThreshold(state, depth, time_keeper);
-    // cerr << "depth: " << depth << ", action: " << action << endl;
+    cerr << "depth = " << depth << ", action = " << action
+         << ", visited_node = " << visited_node << endl;
     if (time_keeper.isTimeOver()) {
       break;
     } else {
