@@ -36,7 +36,12 @@ class TimeKeeper {
 };
 
 /*
-盤面評価方法を変更
+盤面評価方法を変更。確定石と置ける個数を追加
+55位
+
+参考：盤面の評価値によるオセロプログラム
+https://www.info.kindai.ac.jp/~takasi-i/thesis/2014_10-1-037-0140_S_Okigaki_thesis.pdf
+
 */
 
 const vector<vector<int>> CELL_EVALATIONS = {
@@ -44,6 +49,12 @@ const vector<vector<int>> CELL_EVALATIONS = {
     {0, -3, 0, -1, -1, 0, -3, 0},         {-1, -3, -1, -1, -1, -1, -3, -1},
     {-1, -3, -1, -1, -1, -1, -3, -1},     {0, -3, 0, -1, -1, 0, -3, 0},
     {-12, -15, -3, -3, -3, -3, -15, -12}, {30, -12, 0, -1, -1, 0, -12, 30}};
+// const vector<vector<int>> CELL_EVALATIONS = {
+//     {100, -40, 20, 5, 5, 20, -40, 100},   {-40, -80, -1, -1, -1, -1, -80,
+//     -40}, {20, -1, 5, 1, 1, 5, -1, 20},         {5, -1, 1, 0, 0, 1, -1, -5},
+//     {5, -1, 1, 0, 0, 1, -1, -5},          {20, -1, 5, 1, 1, 5, -1, 20},
+//     {-40, -80, -1, -1, -1, -1, -80, -40}, {100, -40, 20, 5, 5, 20, -40,
+//     100}};
 vector<vector<int>> cellBitEvaluations(8, vector<int>(256));
 
 // 位置だけで優先度を決める
@@ -286,7 +297,7 @@ class OthelloBoard {
     int bp = evaluateBoardPosition(isBlack);
     int fs = evaluateFixedStone(isBlack);
     int cn = (int)findLegalMovesIdx(isBlack).size();
-    return 2 * bp + 5 * fs + cn;
+    return 10 * bp + 5 * fs + 10 * cn;
   }
 
   void printBoard() {
@@ -542,16 +553,16 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
     }
     if (time_keeper.isTimeOver()) return 0;
   }
-  // cerr << "score: " << alpha << endl;
+  cerr << "depth: " << depth << ", score: " << alpha << endl;
   return (int)best_action;
 }
 
 // 制限時間(ms)を指定して反復深化で行動を決定する
-int iterativeDeepeningAction(State& state, const int64_t time_threshold = 140) {
+int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
   isVictory = false;
   auto time_keeper = TimeKeeper(time_threshold);
   int best_action = -1;
-  int depth = 5;
+  int depth = 3;
   for (; depth < 61; depth++) {
     visited_node = 0;
     int action = alphaBetaActionWithTimeThreshold(state, depth, time_keeper);
