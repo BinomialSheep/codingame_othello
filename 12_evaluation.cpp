@@ -504,6 +504,7 @@ ScoreType alphaBetaScore(State& state, ScoreType alpha, const ScoreType beta,
     state.isBlack ^= 1;
     return ret;
   }
+  __uint128_t key = ((__uint128_t)state.board.black << 64) + state.board.white;
 
   rep(i, legal_actions.size()) {
     const int action = legal_actions[i];
@@ -512,8 +513,6 @@ ScoreType alphaBetaScore(State& state, ScoreType alpha, const ScoreType beta,
         -alphaBetaScore(state, -beta, -alpha, depth - 1, time_keeper);
     state.retreat(action, flips);
 
-    __uint128_t key =
-        ((__uint128_t)state.board.black << 64) + state.board.white;
     provisionalScores[!state.isBlack][key].emplace_back(score, action);
 
     chmax(alpha, score);
@@ -532,6 +531,8 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
   vector<int> legal_actions = state.legalActions();
   legal_actions = moveOrdering(legal_actions, state, depth);
 
+  __uint128_t key = ((__uint128_t)state.board.black << 64) + state.board.black;
+
   rep(i, legal_actions.size()) {
     const int action = legal_actions[i];
     const uint64_t flips = state.advance(action);
@@ -540,8 +541,6 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
         -alphaBetaScore(state, -beta, -alpha, depth - 1, time_keeper);
     state.retreat(action, flips);
 
-    __uint128_t key =
-        ((__uint128_t)state.board.black << 64) + state.board.black;
     provisionalScores[!state.isBlack][key].emplace_back(score, action);
 
     if (chmax(alpha, score)) best_action = action;
