@@ -81,7 +81,8 @@ vector<uint64_t> maskVecFS = {
 // 黒目線の確定石数
 vector<vector<int>> cellBitFixedStone(256, vector<int>(256));
 // 左辺、右辺用
-map<pair<uint64_t, uint64_t>, int> cellBitFixedStoneMap;
+map<pair<uint64_t, uint64_t>, int> cellBitFixedStoneLeftMap;
+map<pair<uint64_t, uint64_t>, int> cellBitFixedStoneRightMap;
 
 class OthelloBoard {
  public:
@@ -271,11 +272,11 @@ class OthelloBoard {
     // 右辺
     tmpb = black & maskVecFS[2];
     tmpw = white & maskVecFS[2];
-    ret += cellBitFixedStoneMap[make_pair(tmpb, tmpw)];
+    ret += cellBitFixedStoneRightMap[make_pair(tmpb, tmpw)];
     // 左辺
     tmpb = black & maskVecFS[3];
     tmpw = white & maskVecFS[3];
-    ret += cellBitFixedStoneMap[make_pair(tmpb, tmpw)];
+    ret += cellBitFixedStoneLeftMap[make_pair(tmpb, tmpw)];
     // 4隅を除外
     if (black & 1) ret--;
     if (white & 1) ret++;
@@ -560,7 +561,7 @@ int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
   isVictory = false;
   auto time_keeper = TimeKeeper(time_threshold);
   int best_action = -1;
-  int depth = 3;
+  int depth = 5;
   for (; depth < 61; depth++) {
     visited_node = 0;
     int action = alphaBetaActionWithTimeThreshold(state, depth, time_keeper);
@@ -660,9 +661,9 @@ void initCellBitFixedStone() {
       tmp <<= 8;
     }
 
-    cellBitFixedStoneMap[make_pair(keyLeftBlack, keyLeftWhite)] =
+    cellBitFixedStoneLeftMap[make_pair(keyLeftBlack, keyLeftWhite)] =
         cellBitFixedStone[black][white];
-    cellBitFixedStoneMap[make_pair(keyRightBlack, keyRightWhite)] =
+    cellBitFixedStoneRightMap[make_pair(keyRightBlack, keyRightWhite)] =
         cellBitFixedStone[black][white];
   }
 }
