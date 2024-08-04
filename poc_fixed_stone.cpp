@@ -80,6 +80,8 @@ void initCellBitEvaluations() {
 
 // 黒目線の確定石数
 vector<vector<int>> cellBitFixedStone(256, vector<int>(256));
+// 左辺、右辺用
+map<pair<uint64_t, uint64_t>, int> cellBitFixedStoneMap;
 // 辺のパターンに対する確定石を前計算しておく
 void initCellBitFixedStone() {
   int cnt = 0;
@@ -124,6 +126,33 @@ void initCellBitFixedStone() {
   assert(cellBitFixedStone[3][1] == 0);      // 無効盤面
   assert(cellBitFixedStone[252][1] == 5);    // fsb = 6, fsw = 1
   assert(cellBitFixedStone[81][174] == -2);  // fsb = 3, fsw = 5
+
+  rep(black, 256) rep(white, 256) {
+    bool ng = false;
+    rep(i, 8) if (black >> i & 1 && white >> i & 1) ng = true;
+    if (ng) continue;
+    uint64_t keyLeftBlack = 0, keyLeftWhite = 0;
+    uint64_t keyRightBlack = 0, keyRightWhite = 0;
+    // 左辺
+    uint64_t tmp = 128;
+    rep(i, 8) {
+      if (black >> i & 1) keyLeftBlack += tmp;
+      if (white >> i & 1) keyLeftWhite += tmp;
+      tmp <<= 8;
+    }
+    // 右辺
+    tmp = 1;
+    rep(i, 8) {
+      if (black >> i & 1) keyRightBlack += tmp;
+      if (white >> i & 1) keyRightWhite += tmp;
+      tmp <<= 8;
+    }
+
+    cellBitFixedStoneMap[make_pair(keyLeftBlack, keyLeftWhite)] =
+        cellBitFixedStone[black][white];
+    cellBitFixedStoneMap[make_pair(keyRightBlack, keyRightWhite)] =
+        cellBitFixedStone[black][white];
+  }
 }
 
 vector<uint64_t> maskVecFS = {
@@ -182,6 +211,49 @@ int calcFixedStone(uint64_t black, uint64_t white, int isBlack) {
   return ret;
 }
 
+// 自分の確定石数 - 相手の確定石数（近似値）を返す
+int calcFixedStoneFast(uint64_t black, uint64_t white, int isBlack) {
+  int ret = 0;
+  // 上辺
+  uint64_t tmpb = (black & maskVecFS[0]) >> 56;
+  uint64_t tmpw = (white & maskVecFS[0]) >> 56;
+  ret += cellBitFixedStone[tmpb][tmpw];
+  cerr << "上辺: " << tmpb << " " << tmpw << " "
+       << cellBitFixedStone[tmpb][tmpw] << endl;
+  // 下辺
+  tmpb = black & maskVecFS[1];
+  tmpw = white & maskVecFS[1];
+  ret += cellBitFixedStone[tmpb][tmpw];
+  cerr << "下辺: " << tmpb << " " << tmpw << " "
+       << cellBitFixedStone[tmpb][tmpw] << endl;
+
+  // 右辺
+  tmpb = black & maskVecFS[2];
+  tmpw = white & maskVecFS[2];
+  ret += cellBitFixedStoneMap[make_pair(tmpb, tmpw)];
+  cerr << "右辺: " << tmpb << " " << tmpw << " "
+       << cellBitFixedStoneMap[make_pair(tmpb, tmpw)] << endl;
+
+  // 左辺
+  tmpb = black & maskVecFS[3];
+  tmpw = white & maskVecFS[3];
+  ret += cellBitFixedStoneMap[make_pair(tmpb, tmpw)];
+  cerr << "左辺: " << tmpb << " " << tmpw << " "
+       << cellBitFixedStoneMap[make_pair(tmpb, tmpw)] << endl;
+  // 4隅を除外
+  if (black & 1) ret--;
+  if (white & 1) ret++;
+  if (black & 128) ret--;
+  if (white & 128) ret++;
+  if (black & 0x0100000000000000ULL) ret--;
+  if (white & 0x0100000000000000ULL) ret++;
+  if (black & 0x8000000000000000ULL) ret--;
+  if (white & 0x8000000000000000ULL) ret++;
+
+  if (!isBlack) ret *= -1;
+  return ret;
+}
+
 // マスクビッドFSの動作確認
 void verifyMaskVecFS(uint64_t randomBoard) {
   cerr << "Original Board:" << endl;
@@ -216,6 +288,11 @@ int main() {
 
   printBoard(black, white);
 
+  // for (auto [p, v] : cellBitFixedStoneMap) {
+  //   cerr << p.first << " " << p.second << " " << v << endl;
+  // }
+
   int fs = calcFixedStone(black, white, true);
+  assert(fs == calcFixedStoneFast(black, white, true));
   cerr << fs << endl;
 }

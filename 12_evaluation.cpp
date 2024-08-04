@@ -40,16 +40,6 @@ class TimeKeeper {
 55位
 bp fs cn
 10 5  10 55位
-20 5  10 58位
-15 5  10 56位
-50 5  10 78位
-30 5  10 71位
-15 2  10 59位
-15 8  10 56位
-15 5  5  66位
-15 5  15 77位
-15 5  8  59位
-15 5  12 57位
 
 参考：盤面の評価値によるオセロプログラム
 https://www.info.kindai.ac.jp/~takasi-i/thesis/2014_10-1-037-0140_S_Okigaki_thesis.pdf
@@ -90,6 +80,8 @@ vector<uint64_t> maskVecFS = {
 
 // 黒目線の確定石数
 vector<vector<int>> cellBitFixedStone(256, vector<int>(256));
+// 左辺、右辺用
+map<pair<uint64_t, uint64_t>, int> cellBitFixedStoneMap;
 
 class OthelloBoard {
  public:
@@ -269,29 +261,21 @@ class OthelloBoard {
   int evaluateFixedStone(bool isBlack) {
     int ret = 0;
     // 上辺
-    int tmpb = (int)((black & maskVecFS[0]) >> 56);
-    int tmpw = (int)((white & maskVecFS[0]) >> 56);
+    uint64_t tmpb = (black & maskVecFS[0]) >> 56;
+    uint64_t tmpw = (white & maskVecFS[0]) >> 56;
     ret += cellBitFixedStone[tmpb][tmpw];
     // 下辺
-    tmpb = (int)((black & maskVecFS[1]));
-    tmpw = (int)((white & maskVecFS[1]));
+    tmpb = black & maskVecFS[1];
+    tmpw = white & maskVecFS[1];
     ret += cellBitFixedStone[tmpb][tmpw];
     // 右辺
-    tmpb = 0, tmpw = 0;
-    rep(i, 8) {
-      if (black >> (i * 8) & 1) tmpb += 1;
-      if (white >> (i * 8) & 1) tmpw += 1;
-      if (i != 7) tmpb <<= 1, tmpw <<= 1;
-    }
-    ret += cellBitFixedStone[tmpb][tmpw];
+    tmpb = black & maskVecFS[2];
+    tmpw = white & maskVecFS[2];
+    ret += cellBitFixedStoneMap[make_pair(tmpb, tmpw)];
     // 左辺
-    tmpb = 0, tmpw = 0;
-    rep(i, 8) {
-      if (black >> (i * 8) & 128) tmpb += 1;
-      if (white >> (i * 8) & 128) tmpw += 1;
-      if (i != 7) tmpb <<= 1, tmpw <<= 1;
-    }
-    ret += cellBitFixedStone[tmpb][tmpw];
+    tmpb = black & maskVecFS[3];
+    tmpw = white & maskVecFS[3];
+    ret += cellBitFixedStoneMap[make_pair(tmpb, tmpw)];
     // 4隅を除外
     if (black & 1) ret--;
     if (white & 1) ret++;
@@ -654,6 +638,33 @@ void initCellBitFixedStone() {
   assert(cellBitFixedStone[3][1] == 0);      // 無効盤面
   assert(cellBitFixedStone[252][1] == 5);    // fsb = 6, fsw = 1
   assert(cellBitFixedStone[81][174] == -2);  // fsb = 3, fsw = 5
+
+  rep(black, 256) rep(white, 256) {
+    bool ng = false;
+    rep(i, 8) if (black >> i & 1 && white >> i & 1) ng = true;
+    if (ng) continue;
+    uint64_t keyLeftBlack = 0, keyLeftWhite = 0;
+    uint64_t keyRightBlack = 0, keyRightWhite = 0;
+    // 左辺
+    uint64_t tmp = 128;
+    rep(i, 8) {
+      if (black >> i & 1) keyLeftBlack += tmp;
+      if (white >> i & 1) keyLeftWhite += tmp;
+      tmp <<= 8;
+    }
+    // 右辺
+    tmp = 1;
+    rep(i, 8) {
+      if (black >> i & 1) keyRightBlack += tmp;
+      if (white >> i & 1) keyRightWhite += tmp;
+      tmp <<= 8;
+    }
+
+    cellBitFixedStoneMap[make_pair(keyLeftBlack, keyLeftWhite)] =
+        cellBitFixedStone[black][white];
+    cellBitFixedStoneMap[make_pair(keyRightBlack, keyRightWhite)] =
+        cellBitFixedStone[black][white];
+  }
 }
 
 int main() {
