@@ -452,13 +452,31 @@ vector<int> moveOrdering(vector<int>& legal_actions, State& state, int depth) {
   for (auto& vec : bucket)
     for (auto&& v : vec) ret.push_back(v);
 
-  // // 浅い探索に基づく優先度評価
-  // __uint128_t key = ((__uint128_t)state.board.black << 64) +
-  // state.board.white; if (depth > 3) {
+  // 浅い探索に基づく優先度評価
+  // if (depth > 3) {
   //   vector<int> ret2;
   //   ret2.reserve(legal_actions.size());
-  //   vector<pair<int, int>> score_acion =
-  //   provisionalScores[!state.isBlack][key];
+  //   vector<pair<int, int>> score_acion;
+  //   score_acion.reserve(legal_actions.size());
+
+  //   for (auto action : legal_actions) {
+  //     const uint64_t flips = state.advance(action);
+  //     ScoreType score = 0;
+  //     __uint128_t key = state.getKey();
+  //     if (former_transpose_table_upper[!state.isBlack].find(key) !=
+  //         former_transpose_table_upper[!state.isBlack].end()) {
+  //       // 前回の探索で上限値が格納されていた場合
+  //       score = former_transpose_table_upper[!state.isBlack][key];
+  //     } else if (former_transpose_table_lower[!state.isBlack].find(key) !=
+  //                former_transpose_table_lower[!state.isBlack].end()) {
+  //       // 前回の探索で下限値が格納されていた場合
+  //       score = former_transpose_table_lower[!state.isBlack][key];
+  //     } else {
+  //       // 前回の探索で枝刈りされた
+  //     }
+  //     score_acion.emplace_back(score, action);
+  //     state.retreat(action, flips);
+  //   }
 
   //   unordered_set<int> st;
 
@@ -474,9 +492,6 @@ vector<int> moveOrdering(vector<int>& legal_actions, State& state, int depth) {
 
   //   swap(ret, ret2);
   // }
-
-  // // 浅い探索に基づく優先度の削除
-  // provisionalScores[!state.isBlack][key].clear();
 
   assert(legal_actions.size() == ret.size());
   return ret;
@@ -497,9 +512,11 @@ ScoreType nega_alpha_transpose(State& state, ScoreType alpha, ScoreType beta,
 
   // 置換表から上限値と下限値があれば取得
   ScoreType u = INF, l = -INF;
-  if (transpose_table_upper[!state.isBlack].count(key))
+  if (transpose_table_upper[!state.isBlack].find(key) !=
+      transpose_table_upper[!state.isBlack].end())
     u = transpose_table_upper[!state.isBlack][key];
-  if (transpose_table_lower[!state.isBlack].count(key))
+  if (transpose_table_lower[!state.isBlack].find(key) !=
+      transpose_table_lower[!state.isBlack].end())
     l = transpose_table_lower[!state.isBlack][key];
   // upper == lower、つまりもうminimax値が求まっていれば探索終了
   if (u == l) return u;
@@ -512,7 +529,7 @@ ScoreType nega_alpha_transpose(State& state, ScoreType alpha, ScoreType beta,
   vector<int> legal_actions = state.legalActions();
   // パスの処理 手番を交代して同じ深さで再帰する
   if (legal_actions.empty()) {
-    // if (passed) return state.getScore();
+    if (passed) return state.getScore();
     state.isBlack ^= 1;
     auto ret = -nega_alpha_transpose(state, -beta, -alpha, true, depth - 1,
                                      time_keeper);
@@ -569,9 +586,11 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
 
   // 置換表から上限値と下限値があれば取得
   ScoreType u = INF, l = -INF;
-  if (transpose_table_upper[!state.isBlack].count(key))
+  if (transpose_table_upper[!state.isBlack].find(key) !=
+      transpose_table_upper[!state.isBlack].end())
     u = transpose_table_upper[!state.isBlack][key];
-  if (transpose_table_lower[!state.isBlack].count(key))
+  if (transpose_table_lower[!state.isBlack].find(key) !=
+      transpose_table_lower[!state.isBlack].end())
     l = transpose_table_lower[!state.isBlack][key];
   // upper == lower、つまりもうminimax値が求まっていれば探索終了
   if (u == l) return u;
@@ -584,7 +603,7 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
   vector<int> legal_actions = state.legalActions();
   // パスの処理 手番を交代して同じ深さで再帰する
   if (legal_actions.empty()) {
-    // if (passed) return state.getScore();
+    if (passed) return state.getScore();
     state.isBlack ^= 1;
     auto ret = -negaScout(state, -beta, -alpha, true, depth - 1, time_keeper);
     state.isBlack ^= 1;
@@ -661,14 +680,14 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
     transpose_table_lower[!state.isBlack][key] = maxScore;
   }
 
-  return alpha;
+  return maxScore;
 }
 
 // 深さを指定してalphabetaで行動を決定する
 int alphaBetaActionWithTimeThreshold(State& state, const int depth,
                                      const TimeKeeper& time_keeper) {
   ScoreType best_action = -1;
-  ScoreType alpha = -INF - 1;
+  ScoreType alpha = -INF;
   ScoreType beta = INF;
   vector<int> legal_actions = state.legalActions();
   legal_actions = moveOrdering(legal_actions, state, depth);
@@ -715,10 +734,10 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
 int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
   isVictory = false;
   auto time_keeper = TimeKeeper(time_threshold);
-  transpose_table_upper.clear();
-  transpose_table_lower.clear();
-  former_transpose_table_upper.clear();
-  former_transpose_table_lower.clear();
+  rep(i, 2) transpose_table_upper[i].clear();
+  rep(i, 2) transpose_table_lower[i].clear();
+  rep(i, 2) former_transpose_table_upper[i].clear();
+  rep(i, 2) former_transpose_table_lower[i].clear();
   int best_action = -1;
   int depth = 5;
   for (; depth < 61; depth++) {
@@ -734,10 +753,10 @@ int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
     }
     if (isVictory) break;
 
-    transpose_table_upper.swap(former_transpose_table_upper);
-    transpose_table_upper.clear();
-    transpose_table_lower.swap(former_transpose_table_lower);
-    transpose_table_lower.clear();
+    swap(transpose_table_upper, former_transpose_table_upper);
+    rep(i, 2) transpose_table_upper[i].clear();
+    swap(transpose_table_lower, former_transpose_table_lower);
+    rep(i, 2) transpose_table_lower[i].clear();
   }
   cerr << "depth: " << depth << ", best_action: " << best_action << endl;
   // if (best_action == -1) {
