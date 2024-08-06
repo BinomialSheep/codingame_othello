@@ -422,22 +422,14 @@ class State {
 
 namespace iterativedeepening {
 // ある盤面、手番における可能な着手と暫定スコア
-vector<unordered_map<__uint128_t, vector<pair<int, int>>>> provisionalScores(2);
 // 必勝フラグ
 bool isVictory = false;
 // 訪問ノード（性能評価用）
 int visited_node = 0;
-
-// 前回の探索で枝刈りされなかったノードへのボーナス
-int cache_hit_bonus = 1000;
 // 現在の探索結果を入れる置換表(上限) 同じ局面に当たった時用
 vector<unordered_map<__uint128_t, ScoreType>> transpose_table_upper(2);
 // 現在の探索結果を入れる置換表(下限):// 同じ局面に当たった時用
 vector<unordered_map<__uint128_t, ScoreType>> transpose_table_lower(2);
-// 前回の探索結果が入る置換表(上限): move orderingに使う
-vector<unordered_map<__uint128_t, ScoreType>> former_transpose_table_upper(2);
-// 前回の探索結果が入る置換表(下限): move orderingに使う
-vector<unordered_map<__uint128_t, ScoreType>> former_transpose_table_lower(2);
 
 // 指し手を有望度降順でソートする
 vector<int> moveOrdering(vector<int>& legal_actions, State& state, int depth) {
@@ -452,54 +444,13 @@ vector<int> moveOrdering(vector<int>& legal_actions, State& state, int depth) {
   for (auto& vec : bucket)
     for (auto&& v : vec) ret.push_back(v);
 
-  // 浅い探索に基づく優先度評価
-  // if (depth > 3) {
-  //   vector<int> ret2;
-  //   ret2.reserve(legal_actions.size());
-  //   vector<pair<int, int>> score_acion;
-  //   score_acion.reserve(legal_actions.size());
-
-  //   for (auto action : legal_actions) {
-  //     const uint64_t flips = state.advance(action);
-  //     ScoreType score = 0;
-  //     __uint128_t key = state.getKey();
-  //     if (former_transpose_table_upper[!state.isBlack].find(key) !=
-  //         former_transpose_table_upper[!state.isBlack].end()) {
-  //       // 前回の探索で上限値が格納されていた場合
-  //       score = former_transpose_table_upper[!state.isBlack][key];
-  //     } else if (former_transpose_table_lower[!state.isBlack].find(key) !=
-  //                former_transpose_table_lower[!state.isBlack].end()) {
-  //       // 前回の探索で下限値が格納されていた場合
-  //       score = former_transpose_table_lower[!state.isBlack][key];
-  //     } else {
-  //       // 前回の探索で枝刈りされた
-  //     }
-  //     score_acion.emplace_back(score, action);
-  //     state.retreat(action, flips);
-  //   }
-
-  //   unordered_set<int> st;
-
-  //   sort(score_acion.rbegin(), score_acion.rend());
-
-  //   for (auto [score, action] : score_acion) {
-  //     ret2.push_back(action);
-  //     st.insert(action);
-  //   }
-
-  //   for (auto action : legal_actions)
-  //     if (!st.count(action)) ret2.push_back(action);
-
-  //   swap(ret, ret2);
-  // }
-
   assert(legal_actions.size() == ret.size());
   return ret;
 }
 
-ScoreType nega_alpha_transpose(State& state, ScoreType alpha, ScoreType beta,
-                               bool passed, const int depth,
-                               const TimeKeeper& time_keeper) {
+// alphabetaのためのスコア計算
+ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
+                    const int depth, const TimeKeeper& time_keeper) {
   visited_node++;
   // 葉ノードでは評価関数を実行する
   WinningStatus winningStatus = state.getWinningStatus();
@@ -511,81 +462,7 @@ ScoreType nega_alpha_transpose(State& state, ScoreType alpha, ScoreType beta,
   __uint128_t key = state.getKey();
 
   // 置換表から上限値と下限値があれば取得
-  ScoreType u = INF, l = -INF;
-  if (transpose_table_upper[!state.isBlack].find(key) !=
-      transpose_table_upper[!state.isBlack].end())
-    u = transpose_table_upper[!state.isBlack][key];
-  if (transpose_table_lower[!state.isBlack].find(key) !=
-      transpose_table_lower[!state.isBlack].end())
-    l = transpose_table_lower[!state.isBlack][key];
-  // upper == lower、つまりもうminimax値が求まっていれば探索終了
-  if (u == l) return u;
-
-  // 置換表の値を使って探索窓を狭められる場合は狭める
-  chmax(alpha, l);
-  chmin(beta, u);
-
-  // 葉ノードでなければ子ノードを列挙
-  vector<int> legal_actions = state.legalActions();
-  // パスの処理 手番を交代して同じ深さで再帰する
-  if (legal_actions.empty()) {
-    if (passed) return state.getScore();
-    state.isBlack ^= 1;
-    auto ret = -nega_alpha_transpose(state, -beta, -alpha, true, depth - 1,
-                                     time_keeper);
-    state.isBlack ^= 1;
-    return ret;
-  }
-  // move ordering実行
-  legal_actions = moveOrdering(legal_actions, state, depth);
-  // 探索
-  ScoreType maxScore = -INF;
-
-  rep(i, legal_actions.size()) {
-    const int action = legal_actions[i];
-    const uint64_t flips = state.advance(action);
-    ScoreType score = -nega_alpha_transpose(state, -beta, -alpha, false,
-                                            depth - 1, time_keeper);
-    state.retreat(action, flips);
-    if (score >= beta) {
-      // 興味の範囲よりも上の時は枝刈り（fail high）
-      if (score > l) {
-        // 置換票の下限値を更新
-        transpose_table_lower[!state.isBlack][key] = score;
-      }
-      return score;
-    }
-    chmax(alpha, score);
-    chmax(maxScore, score);
-    if (time_keeper.isTimeOver()) return 0;
-  }
-
-  if (maxScore < alpha) {
-    // fail low
-    transpose_table_upper[!state.isBlack][key] = maxScore;
-  } else {
-    // mini, max値が求まった
-    transpose_table_lower[!state.isBlack][key] = maxScore;
-    transpose_table_upper[!state.isBlack][key] = maxScore;
-  }
-
-  return maxScore;
-}
-// alphabetaのためのスコア計算
-ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
-                    const int depth, const TimeKeeper& time_keeper) {
-  visited_node++;
-  // 葉ノードでは評価関数w御実行する
-  WinningStatus winningStatus = state.getWinningStatus();
-  if (winningStatus == WinningStatus::WIN) return INF;
-  if (winningStatus == WinningStatus::LOSE) return -INF;
-  if (winningStatus == WinningStatus::DRAW) return 0;
-  if (depth == 0) return state.getScore();
-
-  __uint128_t key = state.getKey();
-
-  // 置換表から上限値と下限値があれば取得
-  ScoreType u = INF, l = -INF;
+  ScoreType u = INF + 1, l = -INF - 1;
   if (transpose_table_upper[!state.isBlack].find(key) !=
       transpose_table_upper[!state.isBlack].end())
     u = transpose_table_upper[!state.isBlack][key];
@@ -623,7 +500,6 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
     state.retreat(action, flips);
     // 興味の範囲よりもminimax値が上のときは枝刈り fail high
     if (score >= beta) {
-      // 置換表の下限値に登録
       if (score > l) transpose_table_lower[!state.isBlack][key] = score;
       return score;
     }
@@ -635,13 +511,12 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
     // 幅1でnws
     const int action = legal_actions[i];
     const uint64_t flips = state.advance(action);
-    ScoreType score = -nega_alpha_transpose(state, false, -alpha - 1, -alpha,
-                                            depth - 1, time_keeper);
+    ScoreType score =
+        -negaScout(state, -alpha - 1, -alpha, false, depth - 1, time_keeper);
     state.retreat(action, flips);
     // 興味の範囲よりもminimax値が上のときは枝刈り fail high
     if (score >= beta) {
       if (score > l) {
-        // 置換表の下限値に登録
         transpose_table_lower[!state.isBlack][key] = score;
       }
       return score;
@@ -653,10 +528,7 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
       state.retreat(action, flips);
       // 興味の範囲よりもminimax値が上のときは枝刈り fail high
       if (score >= beta) {
-        if (score > l) {
-          // 置換表の下限値に登録
-          transpose_table_lower[!state.isBlack][key] = score;
-        }
+        if (score > l) transpose_table_lower[!state.isBlack][key] = score;
         return score;
       }
     }
@@ -672,7 +544,6 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
   }
 
   if (maxScore < alpha) {
-    // 置換表の上限値に登録 fail low
     transpose_table_upper[!state.isBlack][key] = maxScore;
   } else {
     // minimax値が求まった
@@ -706,13 +577,12 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
     // 幅1でnws
     const int action = legal_actions[i];
     const uint64_t flips = state.advance(action);
-    ScoreType score = -nega_alpha_transpose(state, false, -alpha - 1, -alpha,
-                                            depth - 1, time_keeper);
+    ScoreType score =
+        -negaScout(state, -alpha - 1, -alpha, false, depth - 1, time_keeper);
 
     // 最善手候補よりも良い手が見つかった場合、普通にサーチする
     if (chmax(alpha, score)) {
       score = -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
-
       chmax(alpha, score);
       best_action = action;
     }
@@ -736,16 +606,14 @@ int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
   auto time_keeper = TimeKeeper(time_threshold);
   rep(i, 2) transpose_table_upper[i].clear();
   rep(i, 2) transpose_table_lower[i].clear();
-  rep(i, 2) former_transpose_table_upper[i].clear();
-  rep(i, 2) former_transpose_table_lower[i].clear();
   int best_action = -1;
   int depth = 5;
   for (; depth < 61; depth++) {
     visited_node = 0;
 
     int action = alphaBetaActionWithTimeThreshold(state, depth, time_keeper);
-    cerr << "depth = " << depth << ", action = " << action
-         << ", visited_node = " << visited_node << endl;
+    // cerr << "depth = " << depth << ", action = " << action
+    //      << ", visited_node = " << visited_node << endl;
     if (time_keeper.isTimeOver()) {
       break;
     } else {
@@ -753,17 +621,10 @@ int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
     }
     if (isVictory) break;
 
-    swap(transpose_table_upper, former_transpose_table_upper);
     rep(i, 2) transpose_table_upper[i].clear();
-    swap(transpose_table_lower, former_transpose_table_lower);
     rep(i, 2) transpose_table_lower[i].clear();
   }
   cerr << "depth: " << depth << ", best_action: " << best_action << endl;
-  // if (best_action == -1) {
-  //   cerr << time_keeper.isTimeOver() << endl;
-  //   state.printLegalActions();
-  //   state.printBoard();
-  // }
   return best_action;
 }
 
