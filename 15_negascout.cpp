@@ -37,7 +37,7 @@ class TimeKeeper {
 
 /*
 置換票を実装。
-まだ72位。
+60位。
 */
 
 const vector<vector<int>> CELL_EVALATIONS = {
@@ -284,7 +284,7 @@ class OthelloBoard {
     int bp = evaluateBoardPosition(isBlack);
     int fs = evaluateFixedStone(isBlack);
     int cn = (int)findLegalMovesIdx(isBlack).size();
-    return 10 * bp + 5 * fs + 10 * cn;
+    return 2 * bp + fs + 2 * cn;
   }
 
   void printBoard() {
@@ -367,10 +367,10 @@ class State {
   }
 
   // advanceした状態から戻す
-  void retreat(const int action, const uint64_t flips) {
+  void retreat(uint64_t black, uint64_t white) {
     isBlack ^= 1;
-    uint64_t position = 1ULL << action;
-    board.revPlaceStone(position, flips, isBlack);
+    board.black = black;
+    board.white = white;
   }
 
   // 現在のプレイヤーが可能な行動を全て取得する
@@ -394,6 +394,22 @@ class State {
     }
     return WinningStatus::NONE;
   }
+  // ゲーム終了した時のスコア
+  ScoreType getEndGameScore(WinningStatus winningStatus) {
+    if (winningStatus == WinningStatus::WIN) return INF;
+    if (winningStatus == WinningStatus::LOSE) return -INF;
+    if (winningStatus == WinningStatus::DRAW) return 0;
+    assert(false);
+  }
+  // 連続パスでゲーム終了した時のスコア
+  ScoreType getEndGameByPassScore() {
+    int cntB = __builtin_popcountll(board.black);
+    int cntW = __builtin_popcountll(board.white);
+    if (cntB == cntW) return 0;
+    if (isBlack && cntB > cntW) return INF;
+    if (!isBlack && cntB < cntW) return INF;
+    return -INF;
+  }
 
   // 現在のプレイヤー視点の盤面評価をする
   ScoreType getScore() {
@@ -404,8 +420,6 @@ class State {
   __uint128_t getKey() {
     return ((__uint128_t)board.black << 64) + board.white;
   }
-  // // 現在のゲーム状況を文字列にする
-  // string toString() const { return  /*(string)文字列化されたゲーム状況*/; }
 
   // for debug：オセロ記法で合法手を列挙する
   void printLegalActions() {
@@ -415,10 +429,7 @@ class State {
     }
     cerr << endl;
   }
-  void printBoard() {
-    board.printBoard();
-    // cerr << "Score: " << getScore() << endl;
-  }
+  void printBoard() { board.printBoard(); }
 };
 
 namespace iterativedeepening {
@@ -454,51 +465,52 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
                     const int depth, const TimeKeeper& time_keeper) {
   visited_node++;
   // 葉ノードでは評価関数を実行する
-  WinningStatus winningStatus = state.getWinningStatus();
-  if (winningStatus == WinningStatus::WIN) return INF;
-  if (winningStatus == WinningStatus::LOSE) return -INF;
-  if (winningStatus == WinningStatus::DRAW) return 0;
+  WinningStatus ws = state.getWinningStatus();
+  if (ws != WinningStatus::NONE) return state.getEndGameScore(ws);
   if (depth == 0) return state.getScore();
 
   __uint128_t key = state.getKey();
+  uint64_t origB = state.board.black;
+  uint64_t origW = state.board.white;
 
   // 置換表から上限値と下限値があれば取得
   ScoreType u = INF + 1, l = -INF - 1;
-  if (transpose_table_upper[!state.isBlack].find(key) !=
-      transpose_table_upper[!state.isBlack].end())
+  if (transpose_table_upper[!state.isBlack].count(key))
     u = transpose_table_upper[!state.isBlack][key];
-  if (transpose_table_lower[!state.isBlack].find(key) !=
-      transpose_table_lower[!state.isBlack].end())
+  if (transpose_table_lower[!state.isBlack].count(key))
     l = transpose_table_lower[!state.isBlack][key];
   // upper == lower、つまりもうminimax値が求まっていれば探索終了
   if (u == l) return u;
 
   // 置換表の値を使って探索窓を狭められる場合は狭める
-  chmax(alpha, l);
-  chmin(beta, u);
+  chmax(alpha, l), chmin(beta, u);
 
   // 葉ノードでなければ子ノードを列挙
   vector<int> legal_actions = state.legalActions();
-  // パスの処理 手番を交代して同じ深さで再帰する
+
   if (legal_actions.empty()) {
-    if (passed) return state.getScore();
+    // 連続パスでゲーム終了
+    if (passed) state.getEndGameByPassScore();
     state.isBlack ^= 1;
     auto ret = -negaScout(state, -beta, -alpha, true, depth - 1, time_keeper);
     state.isBlack ^= 1;
     return ret;
   }
+
   // move ordering実行
   legal_actions = moveOrdering(legal_actions, state, depth);
 
   // 探索
   ScoreType maxScore = -INF;
   // i = 0は普通に探索する
-  {
+  int i = 0;
+  if (alpha == -INF) {
+    i++;
     const int action = legal_actions[0];
-    const uint64_t flips = state.advance(action);
+    state.advance(action);
     ScoreType score =
         -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
-    state.retreat(action, flips);
+    state.retreat(origB, origW);
     // 興味の範囲よりもminimax値が上のときは枝刈り fail high
     if (score >= beta) {
       if (score > l) transpose_table_lower[!state.isBlack][key] = score;
@@ -508,25 +520,23 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
     chmax(maxScore, score);
   }
 
-  for (int i = 1; i < (int)legal_actions.size(); i++) {
+  for (; i < (int)legal_actions.size(); i++) {
     // 幅1でnws
     const int action = legal_actions[i];
-    const uint64_t flips = state.advance(action);
+    state.advance(action);
     ScoreType score =
         -negaScout(state, -alpha - 1, -alpha, false, depth - 1, time_keeper);
-    state.retreat(action, flips);
-    // 興味の範囲よりもminimax値が上のときは枝刈り fail high
+    state.retreat(origB, origW);
+    // 興味の範囲よりも更に上のときは枝刈り fail high
     if (score >= beta) {
-      if (score > l) {
-        transpose_table_lower[!state.isBlack][key] = score;
-      }
+      if (score > l) transpose_table_lower[!state.isBlack][key] = score;
       return score;
     }
-    // 最善手候補よりも良い手が見つかった場合、普通にサーチする
+    // beta未満で最善手候補よりも良い手が見つかった場合、普通にサーチする
     if (chmax(alpha, score)) {
       state.advance(action);
       score = -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
-      state.retreat(action, flips);
+      state.retreat(origB, origW);
       // 興味の範囲よりもminimax値が上のときは枝刈り fail high
       if (score >= beta) {
         if (score > l) transpose_table_lower[!state.isBlack][key] = score;
@@ -536,7 +546,7 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
     chmax(alpha, score);
     chmax(maxScore, score);
 
-    if (alpha == INF) {
+    if (maxScore == INF) {
       isVictory = true;
       cerr << "必勝" << endl;
       break;
@@ -545,6 +555,7 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
   }
 
   if (maxScore < alpha) {
+    // alpha以下ということが分かっただけ
     transpose_table_upper[!state.isBlack][key] = maxScore;
   } else {
     // minimax値が求まった
@@ -558,26 +569,27 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
 // 深さを指定してalphabetaで行動を決定する
 int alphaBetaActionWithTimeThreshold(State& state, const int depth,
                                      const TimeKeeper& time_keeper) {
-  ScoreType best_action = -1;
-  ScoreType alpha = -INF;
-  ScoreType beta = INF;
+  int best_action = -1;
+  ScoreType alpha = -INF, beta = INF;
   vector<int> legal_actions = state.legalActions();
   legal_actions = moveOrdering(legal_actions, state, depth);
 
+  uint64_t origB = state.board.black;
+  uint64_t origW = state.board.white;
   // i = 0は普通に探索する
   {
     const int action = legal_actions[0];
-    const uint64_t flips = state.advance(action);
+    state.advance(action);
     ScoreType score =
         -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
-    state.retreat(action, flips);
+    state.retreat(origB, origW);
     if (chmax(alpha, score)) best_action = action;
   }
   // null window serachする
   for (int i = 1; i < (int)legal_actions.size(); i++) {
     // 幅1でnws
     const int action = legal_actions[i];
-    const uint64_t flips = state.advance(action);
+    state.advance(action);
     ScoreType score =
         -negaScout(state, -alpha - 1, -alpha, false, depth - 1, time_keeper);
 
@@ -588,7 +600,7 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
       best_action = action;
     }
     // 戻す
-    state.retreat(action, flips);
+    state.retreat(origB, origW);
 
     if (alpha == INF) {
       isVictory = true;
@@ -613,8 +625,6 @@ int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
     visited_node = 0;
 
     int action = alphaBetaActionWithTimeThreshold(state, depth, time_keeper);
-    // cerr << "depth = " << depth << ", action = " << action
-    //      << ", visited_node = " << visited_node << endl;
     if (time_keeper.isTimeOver()) {
       break;
     } else {
