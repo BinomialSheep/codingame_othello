@@ -36,7 +36,8 @@ class TimeKeeper {
 };
 
 /*
-negascoutを実装したがどこかがバグっているので直す
+置換票を実装。
+まだ72位。
 */
 
 const vector<vector<int>> CELL_EVALATIONS = {
