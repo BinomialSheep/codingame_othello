@@ -433,10 +433,13 @@ class State {
 
 namespace iterativedeepening {
 // ある盤面、手番における可能な着手と暫定スコア
+int turn = 0;
 // 必勝フラグ
 bool isVictory = false;
 // 訪問ノード（性能評価用）
 int visited_node = 0;
+// 前回の探索で枝刈りされなかったノードへのボーナス
+int cache_hit_bonus = 1000;
 // 現在の探索結果を入れる置換表(上限) 同じ局面に当たった時用
 vector<unordered_map<__uint128_t, ScoreType>> transpose_table_upper(2);
 // 現在の探索結果を入れる置換表(下限):// 同じ局面に当たった時用
@@ -446,12 +449,8 @@ vector<unordered_map<__uint128_t, ScoreType>> former_transpose_table_upper(2);
 // 前回の探索結果が入る置換表(下限): move orderingに使う
 vector<unordered_map<__uint128_t, ScoreType>> former_transpose_table_lower(2);
 
-// 指し手を有望度降順でソートする
-vector<int> moveOrdering(vector<int>& legal_actions, State& state, int depth) {
+vector<int> moveOrderingLight(vector<int>& legal_actions) {
   vector<int> ret;
-  ret.reserve(legal_actions.size());
-
-  // 盤面による優先度評価
   vector<vector<int>> bucket(8);
   for (auto&& v : legal_actions) {
     bucket[POSITION_MOVE_ORDERING[v]].push_back(v);
@@ -459,46 +458,86 @@ vector<int> moveOrdering(vector<int>& legal_actions, State& state, int depth) {
   for (auto& vec : bucket)
     for (auto&& v : vec) ret.push_back(v);
 
-  // 浅い探索に基づく優先度評価
-  if (depth > 3) {
-    vector<int> ret2;
-    ret2.reserve(legal_actions.size());
-    vector<pair<int, int>> score_acion;
-    score_acion.reserve(legal_actions.size());
-    uint64_t origB = state.board.black;
-    uint64_t origW = state.board.white;
-
-    for (auto action : legal_actions) {
-      state.advance(action);
-      ScoreType score = 0;
-      __uint128_t key = state.getKey();
-      if (former_transpose_table_upper[!state.isBlack].count(key)) {
-        // 前回の探索で上限値が格納されていた場合
-        score = former_transpose_table_upper[!state.isBlack][key];
-        score_acion.emplace_back(score, action);
-      } else if (former_transpose_table_lower[!state.isBlack].count(key)) {
-        // 前回の探索で下限値が格納されていた場合
-        score = former_transpose_table_lower[!state.isBlack][key];
-        score_acion.emplace_back(score, action);
-      } else {
-        // 前回の探索で枝刈りされた
-      }
-      state.retreat(origB, origW);
-    }
-    sort(score_acion.rbegin(), score_acion.rend());
-    unordered_set<int> st;
-    for (auto [score, action] : score_acion) {
-      ret2.push_back(action);
-      st.insert(action);
-    }
-    for (auto action : legal_actions)
-      if (!st.count(action)) ret2.push_back(action);
-
-    swap(ret, ret2);
-  }
-
   assert(legal_actions.size() == ret.size());
   return ret;
+}
+
+// 指し手を有望度降順でソートする
+vector<int> moveOrdering(vector<int>& legal_actions, State& state, int depth) {
+  vector<int> ret;
+  ret.reserve(legal_actions.size());
+
+  // 盤面による優先度評価
+  if (depth < 5 || former_transpose_table_upper[!state.isBlack].size() <= 10)
+    return (moveOrderingLight(legal_actions));
+
+  // 浅い探索に基づく優先度評価
+  vector<pair<int, int>> score_acion;
+  score_acion.reserve(legal_actions.size());
+  uint64_t origB = state.board.black;
+  uint64_t origW = state.board.white;
+
+  for (auto action : legal_actions) {
+    state.advance(action);
+    ScoreType score = 0;
+    __uint128_t key = state.getKey();
+    if (former_transpose_table_upper[!state.isBlack].count(key)) {
+      // 前回の探索で上限値が格納されていた場合
+      score = former_transpose_table_upper[!state.isBlack][key];
+    } else if (former_transpose_table_lower[!state.isBlack].count(key)) {
+      // 前回の探索で下限値が格納されていた場合
+      score = former_transpose_table_lower[!state.isBlack][key];
+    } else {
+      // 前回の探索で枝刈りされた
+      score = state.getScore() - cache_hit_bonus;
+    }
+    score_acion.emplace_back(score, action);
+    state.retreat(origB, origW);
+  }
+  sort(score_acion.rbegin(), score_acion.rend());
+  for (auto [score, action] : score_acion) ret.push_back(action);
+  assert(legal_actions.size() == ret.size());
+  return ret;
+}
+
+// alphabetaのためのスコア計算
+ScoreType alphaBeta(State& state, ScoreType alpha, const ScoreType beta,
+                    bool passed, const int depth,
+                    const TimeKeeper& time_keeper) {
+  visited_node++;
+  // 葉ノードでは評価関数を実行する
+  WinningStatus ws = state.getWinningStatus();
+  if (ws != WinningStatus::NONE) return state.getEndGameScore(ws);
+  if (depth == 0) return state.getScore();
+
+  vector<int> legal_actions = state.legalActions();
+
+  uint64_t origB = state.board.black;
+  uint64_t origW = state.board.white;
+
+  if (legal_actions.empty()) {
+    // 連続パスでゲーム終了
+    if (passed) state.getEndGameByPassScore();
+    state.isBlack ^= 1;
+    auto ret = -alphaBeta(state, -beta, -alpha, true, depth - 1, time_keeper);
+    state.isBlack ^= 1;
+    return ret;
+  }
+
+  if (depth >= 3) legal_actions = moveOrderingLight(legal_actions);
+
+  rep(i, legal_actions.size()) {
+    const int action = legal_actions[i];
+    state.advance(action);
+    ScoreType score =
+        -alphaBeta(state, -beta, -alpha, false, depth - 1, time_keeper);
+    state.retreat(origB, origW);
+
+    chmax(alpha, score);
+    if (alpha >= beta) return alpha;
+    if (time_keeper.isTimeOver()) return 0;
+  }
+  return alpha;
 }
 
 // alphabetaのためのスコア計算
@@ -539,7 +578,7 @@ ScoreType negaScout(State& state, ScoreType alpha, ScoreType beta, bool passed,
   }
 
   // move ordering実行
-  legal_actions = moveOrdering(legal_actions, state, depth);
+  if (depth >= 3) legal_actions = moveOrdering(legal_actions, state, depth);
 
   // 探索
   ScoreType maxScore = -INF;
@@ -614,41 +653,50 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
   ScoreType alpha = -INF, beta = INF;
   vector<int> legal_actions = state.legalActions();
   legal_actions = moveOrdering(legal_actions, state, depth);
-
   uint64_t origB = state.board.black;
   uint64_t origW = state.board.white;
-  // i = 0は普通に探索する
-  {
-    const int action = legal_actions[0];
-    state.advance(action);
-    ScoreType score =
-        -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
-    state.retreat(origB, origW);
-    if (chmax(alpha, score)) best_action = action;
-  }
-  // null window serachする
-  for (int i = 1; i < (int)legal_actions.size(); i++) {
-    // 幅1でnws
-    const int action = legal_actions[i];
-    state.advance(action);
-    ScoreType score =
-        -negaScout(state, -alpha - 1, -alpha, false, depth - 1, time_keeper);
-
-    // 最善手候補よりも良い手が見つかった場合、普通にサーチする
-    if (chmax(alpha, score)) {
-      score = -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
-      chmax(alpha, score);
-      best_action = action;
+  if (turn > 40) {
+    for (auto action : legal_actions) {
+      state.advance(action);
+      ScoreType score =
+          -alphaBeta(state, -beta, -alpha, false, depth, time_keeper);
+      state.retreat(origB, origW);
+      if (chmax(alpha, score)) best_action = action;
     }
-    // 戻す
-    state.retreat(origB, origW);
-
-    if (alpha == INF) {
-      isVictory = true;
-      cerr << "必勝" << endl;
-      break;
+  } else {
+    // i = 0は普通に探索する
+    {
+      const int action = legal_actions[0];
+      state.advance(action);
+      ScoreType score =
+          -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
+      state.retreat(origB, origW);
+      if (chmax(alpha, score)) best_action = action;
     }
-    if (time_keeper.isTimeOver()) return 0;
+    // null window serachする
+    for (int i = 1; i < (int)legal_actions.size(); i++) {
+      // 幅1でnws
+      const int action = legal_actions[i];
+      state.advance(action);
+      ScoreType score =
+          -negaScout(state, -alpha - 1, -alpha, false, depth - 1, time_keeper);
+
+      // 最善手候補よりも良い手が見つかった場合、普通にサーチする
+      if (chmax(alpha, score)) {
+        score = -negaScout(state, -beta, -alpha, false, depth - 1, time_keeper);
+        chmax(alpha, score);
+        best_action = action;
+      }
+      // 戻す
+      state.retreat(origB, origW);
+
+      if (alpha == INF) {
+        isVictory = true;
+        cerr << "必勝" << endl;
+        break;
+      }
+      if (time_keeper.isTimeOver()) return 0;
+    }
   }
   cerr << "depth: " << depth << ", score: " << alpha << endl;
   return (int)best_action;
@@ -656,6 +704,7 @@ int alphaBetaActionWithTimeThreshold(State& state, const int depth,
 
 // 制限時間(ms)を指定して反復深化で行動を決定する
 int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
+  ++turn;
   isVictory = false;
   auto time_keeper = TimeKeeper(time_threshold);
   rep(i, 2) transpose_table_upper[i].clear();
@@ -664,10 +713,10 @@ int iterativeDeepeningAction(State& state, const int64_t time_threshold = 145) {
   rep(i, 2) former_transpose_table_lower[i].clear();
   int best_action = -1;
   int depth = 5;
+  int action = -1;
   for (; depth < 61; depth++) {
     visited_node = 0;
-
-    int action = alphaBetaActionWithTimeThreshold(state, depth, time_keeper);
+    action = alphaBetaActionWithTimeThreshold(state, depth, time_keeper);
     if (time_keeper.isTimeOver()) {
       break;
     } else {

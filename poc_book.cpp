@@ -617,7 +617,7 @@ uint64_t flipVertical(uint64_t x) {
   x = delta_swap(x, 0x0000FFFF0000FFFF, 16);
   return delta_swap(x, 0x00000000FFFFFFFF, 32);
 }
-// A1-H8反転
+// A1-H8反転あ
 uint64_t flipDiagonalA1H8(uint64_t x) {
   x = delta_swap(x, 0x00AA00AA00AA00AA, 7);
   x = delta_swap(x, 0x0000CCCC0000CCCC, 14);

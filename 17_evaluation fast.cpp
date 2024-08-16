@@ -36,175 +36,15 @@ class TimeKeeper {
 };
 
 /*
-定石を読み込んで、定石に存在した場合はそれに従う。
-60位。
-*/
+盤面評価方法を変更。確定石と置ける個数を追加
+55位
+bp fs cn
+10 5  10 55位
 
-// 定石
-vector<string> books = {"f5",
-                        "f5d6",
-                        "f5d6c3g5",
-                        "f5d6c3g5c6c5",
-                        "f5d6c3g5c6c5c4b6",
-                        "f5d6c3g5c6c5c4b6f6f4",
-                        "f5d6c3g5c6c5c4b6f6f4e6d7",
-                        "f5d6c3g5c6c5c4b6f6f4e6d7c7g6",
-                        "f5d6c3g5c6c5c4b6f6f4e6d7c7g6d8b5",
-                        "f5d6c3g5c6c5c4b6f6f4e6d7c7g6d8b5e7b3",
-                        "f5d6c3g5c6c5c4b6f6f4e6d7c7g6d8b5e7b3a6e3",
-                        "f5d6c3g5c6c5c4b6f6f4e6d7c7g6d8b5e7b3a6e3a5d3",
-                        "f5d6c3g5f6d3",
-                        "f5d6c3g5f6d3e3c2",
-                        "f5d6c3g5f6d3e3c2c1e6",
-                        "f5d6c3g5f6d3e3c2c1e6f4f3",
-                        "f5d6c3g5f6d3e3c2c1e6f4f3f2g4",
-                        "f5d6c3g5f6d3e3c2c1e6f4f3f2g4g6d2",
-                        "f5d6c3g5f6d3e3c2c1e6f4f3f2g4g6d2h3h4",
-                        "f5d6c3g5f6d3e3c2c1e6f4f3f2g4g6d2h3h4h5f7",
-                        "f5d6c3g5f6d3e3c2c1e6f4f3f2g4g6d2h3h4h5f7e7g3",
-                        "f5d6c3g5g6d3",
-                        "f5d6c3g5g6d3c4e3",
-                        "f5d6c3g5g6d3c4e3f3b4",
-                        "f5d6c3g5g6d3c4e3f3b4f6e6",
-                        "f5d6c3g5g6d3c4e3f3b4f6e6f4g4",
-                        "f5d6c3g5g6d3c4e3f3b4f6e6f4g4h4h5",
-                        "f5d6c3g5g6d3c4e3f3b4f6e6f4g4h4h5h6g3",
-                        "f5d6c3g5g6d3c4e3f3b4f6e6f4g4h4h5h6g3h3f7",
-                        "f5d6c3g5g6d3c4e3f3b4f6e6f4g4h4h5h6g3h3f7f8c2",
-                        "f5d6c4b3",
-                        "f5d6c4b3b4f4",
-                        "f5d6c4b3b4f4f6g5",
-                        "f5d6c4b3b4f4f6g5f3e7",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3h3e3",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3h3e3f2b6",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3h3e3f2b6h4d3",
-                        "f5d6c5b4",
-                        "f5d6c5b4d7e7",
-                        "f5d6c5b4d7e7c7d8",
-                        "f5d6c5b4d7e7c7d8c3d3",
-                        "f5d6c5b4d7e7c7d8c3d3c4b3",
-                        "f5d6c5b4d7e7c7d8c3d3c4b3d2e2",
-                        "f5d6c5b4d7e7c7d8c3d3c4b3d2e2c2e3",
-                        "f5d6c5b4d7e7c7d8c3d3c4b3d2e2c2e3f4f2",
-                        "f5d6c5b4d7e7c7d8c3d3c4b3d2e2c2e3f4f2c6b5",
-                        "f5d6c5b4d7e7c7d8c3d3c4b3d2e2c2e3f4f2c6b5f3c8",
-                        "f5d6c4",
-                        "f5d6c4b3b4",
-                        "f5d6c4b3b4f4f6",
-                        "f5d6c4b3b4f4f6g5f3",
-                        "f5d6c4b3b4f4f6g5f3e7c5",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3h3",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3h3e3f2",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3h3e3f2b6h4",
-                        "f5d6c4b3b4f4f6g5f3e7c5e6c3g4c6g3h3e3f2b6h4d3e2",
-                        "f5d6c4d3c3",
-                        "f5d6c4d3c3b3d2",
-                        "f5d6c4d3c3b3d2e1b5",
-                        "f5d6c4d3c3b3d2e1b5c5b4",
-                        "f5d6c4d3c3b3d2e1b5c5b4e3c2",
-                        "f5d6c4d3c3b3d2e1b5c5b4e3c2a4c6",
-                        "f5d6c4d3c3b3d2e1b5c5b4e3c2a4c6d1e2",
-                        "f5d6c4d3c3b3d2e1b5c5b4e3c2a4c6d1e2c7b6",
-                        "f5d6c4d3c3b3d2e1b5c5b4e3c2a4c6d1e2c7b6f1e6",
-                        "f5d6c4d3c3b3d2e1b5c5b4e3c2a4c6d1e2c7b6f1e6f3f2",
-                        "f5d6c4d3c3f4f6",
-                        "f5d6c4d3c3f4f6f3e6",
-                        "f5d6c4d3c3f4f6f3e6e7f7",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g5e3",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g5e3d7c6",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g5e3d7c6e2g4",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g5e3d7c6e2g4h3d2",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g5e3d7c6e2g4h3d2g3f1",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g6e3",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g6e3e2f1",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g6e3e2f1d1g5",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g6e3e2f1d1g5c6d8",
-                        "f5d6c4d3c3f4f6f3e6e7f7c5b6g6e3e2f1d1g5c6d8g4h6",
-                        "f5d6c4d3c3f4f6b4c2",
-                        "f5d6c4d3c3f4f6b4c2f3e3",
-                        "f5d6c4d3c3f4f6b4c2f3e3e2c6",
-                        "f5d6c4d3c3f4f6b4c2f3e3e2c6f2c5",
-                        "f5d6c4d3c3f4f6b4c2f3e3e2c6f2c5e6d2",
-                        "f5d6c4d3c3f4f6b4c2f3e3e2c6f2c5e6d2g4d7",
-                        "f5d6c4d3c3f4f6b4c2f3e3e2c6f2c5e6d2g4d7b3g5",
-                        "f5d6c4d3c3f4f6b4c2f3e3e2c6f2c5e6d2g4d7b3g5c8h4",
-                        "f5d6c4d3c3f4f6g5e3",
-                        "f5d6c4d3c3f4f6g5e3f3g6",
-                        "f5d6c4d3c3f4f6g5e3f3g6e2h5",
-                        "f5d6c4d3c3f4f6g5e3f3g6e2h5c5g4",
-                        "f5d6c4d3c3f4f6g5e3f3g6e2h5c5g4g3f2",
-                        "f5d6c4d3c3b5b4",
-                        "f5d6c4d3c3b5b4f4c5",
-                        "f5d6c4d3c3b5b4f4c5a4b3",
-                        "f5d6c4d3c3b5b4f4c5a4b3d2a6",
-                        "f5d6c4d3c3b5b4f4c5a4b3d2a6a3e3",
-                        "f5d6c4d3c3b5b4f4c5a4b3d2a6a3e3f3g4",
-                        "f5d6c4d3c3b5b4f4c5a4b3d2a6a3e3f3g4e6f6",
-                        "f5d6c4d3c3b5b4f4c5a4b3d2a6a3e3f3g4e6f6g3e2",
-                        "f5d6c4d3c3b5b4f4c5a4b3d2a6a3e3f3g4e6f6g3e2c2f2",
-                        "f5d6c4g5f6",
-                        "f5d6c4g5f6f4f3",
-                        "f5d6c4g5f6f4f3d3c3",
-                        "f5d6c4g5f6f4f3d3c3g6e3",
-                        "f5d6c4g5f6f4f3d3c3g6e3e6h5",
-                        "f5d6c4g5f6f4f3d3c3g6e3e6h5d2e2",
-                        "f5d6c4g5f6f4f3d3c3g6e3e6h5d2e2c2c6",
-                        "f5d6c4g5f6f4f3d3c3g6e3e6h5d2e2c2c6c5b6",
-                        "f5d6c4g5f6f4f3d3c3g6e3e6h5d2e2c2c6c5b6b4b3",
-                        "f5d6c4g5f6f4f3d3c3g6e3e6h5d2e2c2c6c5b6b4b3c7a4",
-                        "f5f6e6",
-                        "f5f6e6f4g6",
-                        "f5f6e6f4g6c5f3",
-                        "f5f6e6f4g6c5f3g4e3",
-                        "f5f6e6f4g6c5f3g4e3d6g5",
-                        "f5f6e6f4g6c5f3g4e3d6g5g3c3",
-                        "f5f6e6f4g6c5f3g4e3d6g5g3c3h5c4",
-                        "f5f6e6f4g6c5f3g4e3d6g5g3c3h5c4d7h6",
-                        "f5f6e6f4g6c5f3g4e3d6g5g3c3h5c4d7h6h7h3",
-                        "f5f6e6f4g6c5f3g4e3d6g5g3c3h5c4d7h6h7h3f7e7",
-                        "f5f6e6f4g6c5f3g4e3d6g5g3c3h5c4d7h6h7h3f7e7f8h4",
-                        "f5f6e6f4g6c5f3g5d6",
-                        "f5f6e6f4g6c5f3g5d6e3h4",
-                        "f5f6e6f4g6c5f3g5d6e3h4g3g4",
-                        "f5f6e6f4g6c5f3g5d6e3h4g3g4h6e2",
-                        "f5f6e6f4g6c5f3g5d6e3h4g3g4h6e2d3h5",
-                        "f5f6e6f4g6c5f3g5d6e3h4g3g4h6e2d3h5h3c6",
-                        "f5f6e6f4g6c5f3g5d6e3h4g3g4h6e2d3h5h3c6e7f2",
-                        "f5f6e6f4g6c5f3g5d6e3h4g3g4h6e2d3h5h3c6e7f2c4d2",
-                        "f5f6e6f4g6d6g4",
-                        "f5f6e6f4g6d6g4g5h4",
-                        "f5f6e6f4g6d6g4g5h4e7f3",
-                        "f5f6e6f4g6d6g4g5h4e7f3h6f7",
-                        "f5f6e6f4g6d6g4g5h4e7f3h6f7e8f8",
-                        "f5f6e6f4g6d6g4g5h4e7f3h6f7e8f8g8d3",
-                        "f5f6e6f4g6d6g4g5h4e7f3h6f7e8f8g8d3h5h7",
-                        "f5f6e6f4g6d6g4g5h4e7f3h6f7e8f8g8d3h5h7e3c5",
-                        "f5f6e6f4g6d6g4g5h4e7f3h6f7e8f8g8d3h5h7e3c5c4g3",
-                        "f5f6e6d6f7",
-                        "f5f6e6d6f7e3c6",
-                        "f5f6e6d6f7e3c6e7f4",
-                        "f5f6e6d6f7e3c6e7f4c5d8",
-                        "f5f6e6d6f7e3c6e7f4c5d8c7d7",
-                        "f5f6e6d6f7e3c6e7f4c5d8c7d7f8b5",
-                        "f5f6e6d6f7e3c6e7f4c5d8c7d7f8b5c4e8",
-                        "f5f6e6d6f7e3c6e7f4c5d8c7d7f8b5c4e8c8f3",
-                        "f5f6e6d6f7e3c6e7f4c5d8c7d7f8b5c4e8c8f3g5b6",
-                        "f5f6e6d6f7e3c6e7f4c5d8c7d7f8b5c4e8c8f3g5b6d3b4",
-                        "f5f6e6d6f7f4d7",
-                        "f5f6e6d6f7f4d7e7d8",
-                        "f5f6e6d6f7f4d7e7d8g5c6",
-                        "f5f6e6d6f7f4d7e7d8g5c6f8g6",
-                        "f5f6e6d6f7f4d7e7d8g5c6f8g6h5h6",
-                        "f5f6e6d6f7f4d7e7d8g5c6f8g6h5h6h7c4",
-                        "f5f6e6d6f7f4d7e7d8g5c6f8g6h5h6h7c4e8g8",
-                        "f5f6e6d6f7f4d7e7d8g5c6f8g6h5h6h7c4e8g8c5e3",
-                        "f5f6e6d6f7f4d7e7d8g5c6f8g6h5h6h7c4e8g8c5e3d3c7"};
+参考：盤面の評価値によるオセロプログラム
+https://www.info.kindai.ac.jp/~takasi-i/thesis/2014_10-1-037-0140_S_Okigaki_thesis.pdf
+
+*/
 
 const vector<vector<int>> CELL_EVALATIONS = {
     {30, -12, 0, -1, -1, 0, -12, 30},     {-12, -15, -3, -3, -3, -3, -15, -12},
@@ -843,105 +683,8 @@ void initCellBitFixedStone() {
   }
 }
 
-// ビッドボードの回転操作（https://qiita.com/ysuzuk81/items/453b08a14d23fb8c6c11）
-// Delta Swap
-uint64_t delta_swap(uint64_t x, uint64_t mask, int delta) {
-  uint64_t t = (x ^ (x >> delta)) & mask;
-  return x ^ t ^ (t << delta);
-}
-// 水平反転
-uint64_t flipHorizontal(uint64_t x) {
-  x = delta_swap(x, 0x5555555555555555, 1);
-  x = delta_swap(x, 0x3333333333333333, 2);
-  return delta_swap(x, 0x0F0F0F0F0F0F0F0F, 4);
-}
-// 垂直反転
-uint64_t flipVertical(uint64_t x) {
-  x = delta_swap(x, 0x00FF00FF00FF00FF, 8);
-  x = delta_swap(x, 0x0000FFFF0000FFFF, 16);
-  return delta_swap(x, 0x00000000FFFFFFFF, 32);
-}
-// A1-H8反転
-uint64_t flipDiagonalA1H8(uint64_t x) {
-  x = delta_swap(x, 0x00AA00AA00AA00AA, 7);
-  x = delta_swap(x, 0x0000CCCC0000CCCC, 14);
-  return delta_swap(x, 0x00000000F0F0F0F0, 28);
-}
-uint64_t flipDiagonalA8H1(uint64_t x) {
-  x = delta_swap(x, 0x0055005500550055, 9);
-  x = delta_swap(x, 0x0000333300003333, 18);
-  return delta_swap(x, 0x000000000F0F0F0F, 36);
-}
-// 時計回りに90度回転
-uint64_t rotateClockwise90(uint64_t x) {
-  return flipHorizontal(flipDiagonalA1H8(x));
-}
-// 時計回りに90度回転した時の新しいactionの位置
-int rotate90Action(int action) {
-  int i = action / 8, j = action % 8;
-  int i2 = j, j2 = 7 - i;
-  return i2 * 8 + j2;
-}
-int flipHorizontalAction(int action) {
-  int i = action / 8, j = action % 8;
-  return i * 8 + (7 - j);
-}
-int flipVerticalAction(int action) {
-  int i = action / 8, j = action % 8;
-  return (7 - i) * 8 + j;
-}
-int flipDiagonalA1H8Action(int action) {
-  int i = action / 8, j = action % 8;
-  return j * 8 + i;
-}
-int flipDiagonalA8H1Action(int action) {
-  int i = action / 8, j = action % 8;
-  return (7 - j) * 8 + (7 - i);
-}
-
-vector<unordered_map<__uint128_t, int>> bookMap(2);
-void loadBooks() {
-  auto stringToAction = [](string s) {
-    return (s[1] - '1') * 8 + (s[0] - 'a');
-  };
-  //   int cnt = 0;
-  for (string book : books) {
-    // if (++cnt == 10) break;
-    OthelloBoard board;
-    State state(board, true);
-    for (int i = 0; i < (int)book.size() - 2; i += 2) {
-      int action = stringToAction(book.substr(i, 2));
-      state.advance(action);
-    }
-    // 今の盤面における最善手が最後の手
-    int action = stringToAction(book.substr((int)book.size() - 2, 2));
-    uint64_t black = state.board.black, white = state.board.white;
-    __uint128_t key;
-    rep(i, 4) {
-      black = rotateClockwise90(black);
-      white = rotateClockwise90(white);
-      action = rotate90Action(action);
-      rep(j, 2) {
-        black = flipHorizontal(black);
-        white = flipHorizontal(white);
-        action = flipHorizontalAction(action);
-        key = ((__uint128_t)black << 64) + white;
-        bookMap[!state.isBlack][key] = action;
-      }
-      rep(j, 2) {
-        black = flipVertical(black);
-        white = flipVertical(white);
-        action = flipVerticalAction(action);
-        key = ((__uint128_t)black << 64) + white;
-        bookMap[!state.isBlack][key] = action;
-      }
-    }
-  }
-}
-
 int main() {
   initCellBitEvaluations();
-  loadBooks();
 
   int id;
   cin >> id;
@@ -976,13 +719,9 @@ int main() {
     // ビッドボード形式で保持する
     OthelloBoard board(sboard);
     State state(board, isBlack);
-    int res = -1;
-    if (bookMap[!isBlack].count(state.getKey())) {
-      cerr << "定石ヒット" << endl;
-      res = bookMap[!isBlack][state.getKey()];
-    } else {
-      res = iterativedeepening::iterativeDeepeningAction(state);
-    }
+
+    int res = iterativedeepening::iterativeDeepeningAction(state);
+
     if (res == -1) {
       cerr << "負け" << endl;
       cout << actions[0] << endl;
